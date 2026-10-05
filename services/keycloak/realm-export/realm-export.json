@@ -863,10 +863,10 @@
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "https://agent.agri-gaia.localhost/oidc/callback"
+        "https://app.agri-gaia.localhost/agent/oidc/callback"
       ],
       "webOrigins": [
-        "https://agent.agri-gaia.localhost"
+        "https://app.agri-gaia.localhost"
       ],
       "bearerOnly": false,
       "consentRequired": false,
@@ -880,7 +880,7 @@
       "attributes": {
         "standard.token.exchange.enabled": "true",
         "pkce.code.challenge.method": "S256",
-        "post.logout.redirect.uris": "https://agent.agri-gaia.localhost/*"
+        "post.logout.redirect.uris": "https://app.agri-gaia.localhost/agent/*"
       },
       "fullScopeAllowed": true,
       "protocolMappers": [
