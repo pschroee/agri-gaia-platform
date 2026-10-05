@@ -919,8 +919,8 @@ services:
         required: false
     environment:
       AGW_AUTH_MODE: oidc
-      AGW_PUBLIC_URL: https://agent.${PROJECT_BASE_URL}
-      AGW_ALLOWED_HOSTS: agent.${PROJECT_BASE_URL}
+      AGW_PUBLIC_URL: https://app.${PROJECT_BASE_URL}/agent
+      AGW_ALLOWED_HOSTS: app.${PROJECT_BASE_URL}
       AGW_FRAME_ANCESTORS: https://app.${PROJECT_BASE_URL}
       AGW_OIDC_ISSUER: https://keycloak.${PROJECT_BASE_URL}/realms/${KEYCLOAK_REALM_NAME}
       AGW_OIDC_CLIENT_ID: agw-agent
@@ -954,10 +954,14 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=${COMPOSE_PROJECT_NAME}_network
-      - traefik.http.routers.agent.rule=Host(`agent.${PROJECT_BASE_URL}`)
+      # Served under the platform's own host (https://app.<base>/agent/), so the existing certificate applies
+      # and the panel shares its origin with the frontend. The prefix is stripped before the orchestrator.
+      - traefik.http.routers.agent.rule=Host(`app.${PROJECT_BASE_URL}`) && PathPrefix(`/agent`)
       - traefik.http.routers.agent.tls=true
       - traefik.http.routers.agent.tls.options=default
-      - traefik.http.routers.agent.middlewares[0]=security-headers
+      - traefik.http.routers.agent.middlewares[0]=agent-strip-prefix
+      - traefik.http.routers.agent.middlewares[1]=security-headers
+      - traefik.http.middlewares.agent-strip-prefix.stripprefix.prefixes=/agent
       - traefik.http.routers.agent.entrypoints=https
       - traefik.http.services.agent.loadbalancer.server.port=18480
     depends_on:

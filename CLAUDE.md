@@ -79,13 +79,18 @@ The agent gateway has its own development setup (`services/agent-gateway/dev.sh`
 
 ## Agent gateway service
 
-- Services `agent_gateway` (orchestrator, `https://agent.<PROJECT_BASE_URL>`), `agent_postgres`, `agent_s3`,
+- Services `agent_gateway` (orchestrator, `https://app.<PROJECT_BASE_URL>/agent/`), `agent_postgres`, `agent_s3`,
   `agent_npm_cache`, `agent_pip_cache`, `agent_searxng` and the build-only `agent_pi_image`/`agent_exec_image`,
   all under the compose profile **`agents`**. The orchestrator mounts the Docker socket and starts the agent
   sandboxes itself; they are not part of the compose project.
 - Its networks are fixed in `10.231.0.0/16` (`agent_intern` .18, `agent_pkg` .21, `agent_search` .22; the
   orchestrator creates egress .20 and slot networks in `10.231.128.0/17`). Never move them into Docker's
   default 172.x range: a stray network there once covered the address of the platform API inside the VM.
+- **Served under `https://app.<PROJECT_BASE_URL>/agent/`, not on a subdomain of its own.** The router matches
+  `Host(app.…) && PathPrefix(/agent)` and strips the prefix. Reason (2026-10-05): HARICA, the ACME CA of the
+  instance, did not issue a certificate for the new name `agent.…` within Traefik 2.11's fixed wait of about
+  30 s (`certificate: time limit exceeded`, no retry afterwards). Under the app host the existing certificate
+  applies, and panel and frontend share one origin.
 - The orchestrator reaches Keycloak and the API through the public names, which resolve to Traefik inside the
   compose network (`reverse_proxy` aliases).
 - Secrets: `secrets/agent-gateway.env` (orchestrator) and `secrets/agent-gateway-services.env` (database,
