@@ -856,6 +856,90 @@
       "optionalClientScopes": []
     },
     {
+      "id": "66258979-7699-4740-b8a3-7abb2a31ffde",
+      "clientId": "agw-agent",
+      "name": "Agent gateway",
+      "description": "Agent gateway (services/agent-gateway): logs the user in and exchanges the user's token per chat (RFC 8693).",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "redirectUris": [
+        "https://agent.agri-gaia.localhost/oidc/callback"
+      ],
+      "webOrigins": [
+        "https://agent.agri-gaia.localhost"
+      ],
+      "bearerOnly": false,
+      "consentRequired": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": true,
+      "protocol": "openid-connect",
+      "attributes": {
+        "standard.token.exchange.enabled": "true",
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://agent.agri-gaia.localhost/*"
+      },
+      "fullScopeAllowed": true,
+      "protocolMappers": [
+        {
+          "id": "05ef52eb-9ff5-413c-945e-a780707d53b1",
+          "name": "backend-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "backend",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        },
+        {
+          "id": "260a615a-ae70-4c39-aaee-b3fb925d2bac",
+          "name": "minio-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "minio",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false"
+          }
+        },
+        {
+          "id": "c78229f3-f6a7-4adf-b66c-54b59176bd93",
+          "name": "minio_policy",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "minio_policy",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "minio_policy",
+            "jsonType.label": "String"
+          }
+        }
+      ],
+      "defaultClientScopes": [
+        "web-origins",
+        "profile",
+        "roles",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "address",
+        "phone",
+        "offline_access",
+        "microprofile-jwt"
+      ]
+    },
+    {
       "id": "dfbfdc90-a2e8-4e97-952f-ac75b6d08d35",
       "clientId": "frontend",
       "rootUrl": "https://app.agri-gaia.localhost",

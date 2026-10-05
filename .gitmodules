@@ -6,6 +6,7 @@
 # SPDX-FileContributor: Maik Fruhner
 # SPDX-FileContributor: Prof. Dr.-Ing. Heiko Tapken
 # SPDX-FileContributor: Tobias Wamhof
+# SPDX-FileContributor: Philipp Schröer
 #
 # SPDX-License-Identifier: MIT
 
@@ -15,3 +16,6 @@
 [submodule "services/frontend"]
 	path = services/frontend
 	url = https://github.com/hsos-ai-lab/agri-gaia-frontend.git
+[submodule "services/agent-gateway"]
+	path = services/agent-gateway
+	url = https://github.com/pschroee/agri-gaia-agent-gateway.git

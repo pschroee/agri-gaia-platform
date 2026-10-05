@@ -77,6 +77,30 @@ submodule moves on `ki-agents`, commit the new submodule pointer in this reposit
 See `README.md`: `start.sh`, `start-no-monitoring.sh`, `stop.sh`, `run_tests.sh`; configuration in `.env`.
 The agent gateway has its own development setup (`services/agent-gateway/dev.sh`) and its own `CLAUDE.md`.
 
+## Agent gateway service
+
+- Services `agent_gateway` (orchestrator, `https://agent.<PROJECT_BASE_URL>`), `agent_postgres`, `agent_s3`,
+  `agent_npm_cache`, `agent_pip_cache`, `agent_searxng` and the build-only `agent_pi_image`/`agent_exec_image`,
+  all under the compose profile **`agents`**. The orchestrator mounts the Docker socket and starts the agent
+  sandboxes itself; they are not part of the compose project.
+- Its networks are fixed in `10.231.0.0/16` (`agent_intern` .18, `agent_pkg` .21, `agent_search` .22; the
+  orchestrator creates egress .20 and slot networks in `10.231.128.0/17`). Never move them into Docker's
+  default 172.x range: a stray network there once covered the address of the platform API inside the VM.
+- The orchestrator reaches Keycloak and the API through the public names, which resolve to Traefik inside the
+  compose network (`reverse_proxy` aliases).
+- Secrets: `secrets/agent-gateway.env` (orchestrator) and `secrets/agent-gateway-services.env` (database,
+  object store, search), templates as `*.env.example` next to them. The deployment copies
+  `/opt/agri-gaia/secrets/` into `platform/secrets/`, so the files live there on the host.
+- Login: the gateway logs the platform user in itself (authorization code flow with PKCE at the Keycloak client
+  `agw-agent`, `prompt=none` reuses the platform's Keycloak session inside the iframe) and exchanges that user's
+  token per chat (RFC 8693). The client `frontend` is unchanged.
+- Keycloak: `agw-agent` is in `realm-export.json`, which Keycloak imports only when the realm does not exist yet
+  (`--override false`). A running instance needs the client created or updated through the admin API; the
+  script for that lives in the gateway repository (`dev/keycloak-agw-agent.sh`). Keycloak generates the client
+  secret; copy it into `secrets/agent-gateway.env`.
+- Frontend panel: build flag `VITE_AGENT_ENABLED` from `AGENT_ENABLED` in `.env` (true on `ki-agents`). The
+  panel only makes sense when the `agents` profile runs.
+
 ## Deployment and how to switch back
 
 Production deployment runs through `deploy.sh` of the deployment repository. It deletes and re-clones
@@ -90,7 +114,10 @@ AG_GIT_ORGANIZATION=pschroee
 AG_GIT_BRANCH_PLATFORM=ki-agents
 AG_GIT_BRANCH_BACKEND=ki-agents
 AG_GIT_BRANCH_FRONTEND=ki-agents
+AG_COMPOSE_PROFILES=<existing profiles>,agents
 ```
+
+and put `agent-gateway.env` and `agent-gateway-services.env` into `/opt/agri-gaia/secrets/`.
 
 then `sudo ./deploy.sh`. To switch back, restore the backup copy (`hsos-ai-lab`, `main`) and run
 `sudo ./deploy.sh` again.

@@ -6,12 +6,26 @@
 # SPDX-FileContributor: Maik Fruhner
 # SPDX-FileContributor: Prof. Dr.-Ing. Heiko Tapken
 # SPDX-FileContributor: Tobias Wamhof
+# SPDX-FileContributor: Philipp Schröer
 #
 # SPDX-License-Identifier: MIT
 
 networks:
   default:
     name: ${COMPOSE_PROJECT_NAME}_network
+
+  # Networks of the agent gateway, fixed in 10.231.0.0/16 so that they never cover addresses of the
+  # surrounding network. Slot and egress networks are created by the orchestrator itself.
+  agent_intern:
+    name: ${COMPOSE_PROJECT_NAME}_agent_intern
+    ipam: { config: [{ subnet: 10.231.18.0/24 }] }
+  agent_search:
+    name: ${COMPOSE_PROJECT_NAME}_agent_search
+    ipam: { config: [{ subnet: 10.231.22.0/24 }] }
+  agent_pkg:
+    name: ${COMPOSE_PROJECT_NAME}_agent_pkg
+    driver_opts: { com.docker.network.bridge.enable_icc: "false" }
+    ipam: { config: [{ subnet: 10.231.21.0/24 }] }
 
 services:
   reverse_proxy:
@@ -183,6 +197,7 @@ services:
         - PROJECT_BASE_URL=${PROJECT_BASE_URL}
         - KEYCLOAK_REALM_NAME=${KEYCLOAK_REALM_NAME}
         - VITE_PORTAINER_VERSION=${PORTAINER_VERSION}
+        - VITE_AGENT_ENABLED=${AGENT_ENABLED:-false}
     restart: unless-stopped
     expose:
       - "80"
@@ -866,6 +881,201 @@ services:
     command: ["tritonserver", "--model-repository=s3://minio:9000/triton", "--model-control-mode=poll"]
     profiles: ["triton"]
 
+
+  ### Agent gateway (profile "agents") ###
+  # The agent gateway (services/agent-gateway) runs coding agents in sandboxes and authorizes every
+  # platform call against the delegation of the chat. The sandboxes are started by the orchestrator
+  # through the Docker API and are not part of this compose project. Secrets come from
+  # secrets/agent-gateway.env (orchestrator) and secrets/agent-gateway-services.env (database,
+  # object store, search); templates next to them as *.env.example.
+
+  # Build-only services: images of the agent sandbox (pi) and the execution sandbox.
+  agent_pi_image:
+    build:
+      context: services/agent-gateway
+      dockerfile: images/agw-basis/Dockerfile
+      target: pi
+    image: agri_gaia-agent_pi
+    entrypoint: ["true"]
+    restart: "no"
+    profiles: ["agents"]
+
+  agent_exec_image:
+    build:
+      context: services/agent-gateway
+      dockerfile: images/agw-basis/Dockerfile
+      target: exec
+    image: agri_gaia-agent_exec
+    entrypoint: ["true"]
+    restart: "no"
+    profiles: ["agents"]
+
+  agent_gateway:
+    build:
+      context: services/agent-gateway
+    restart: unless-stopped
+    env_file:
+      - path: secrets/agent-gateway.env
+        required: false
+    environment:
+      AGW_AUTH_MODE: oidc
+      AGW_PUBLIC_URL: https://agent.${PROJECT_BASE_URL}
+      AGW_ALLOWED_HOSTS: agent.${PROJECT_BASE_URL}
+      AGW_FRAME_ANCESTORS: https://app.${PROJECT_BASE_URL}
+      AGW_OIDC_ISSUER: https://keycloak.${PROJECT_BASE_URL}/realms/${KEYCLOAK_REALM_NAME}
+      AGW_OIDC_CLIENT_ID: agw-agent
+      AGW_PLATFORM_API_URL: https://api.${PROJECT_BASE_URL}
+      AGW_PLATFORM_TOKEN_URL: https://keycloak.${PROJECT_BASE_URL}/realms/${KEYCLOAK_REALM_NAME}/protocol/openid-connect/token
+      AGW_PLATFORM_CLIENT_ID: agw-agent
+      AGW_PLATFORM_TOKEN_EXCHANGE: "true"
+      AGW_S3_ENDPOINT: agent_s3:9000
+      AGW_CATALOG: /etc/agw/models.json
+      AGW_IMAGE: agri_gaia-agent_exec
+      AGW_PI_IMAGE: agri_gaia-agent_pi
+      AGW_EGRESS_NETWORK: ${COMPOSE_PROJECT_NAME}_agent_egress
+      AGW_EGRESS_SUBNET: 10.231.20.0/24
+      AGW_SOCKET_VOLUME: ${COMPOSE_PROJECT_NAME}_agent_sockets
+      AGW_SOCKET_ROOT: /run/agw
+      AGW_PROXY_BASE_URL: http://orchestrator:18481
+      AGW_BLOCKED_SUBNETS: 10.231.20.0/24,10.231.21.0/24,10.231.22.0/24,10.231.128.0/17
+      AGW_SEARXNG_URL: http://agent_searxng:8080
+      AGW_NPM_CACHE: ${COMPOSE_PROJECT_NAME}-agent_npm_cache-1
+      AGW_PIP_CACHE: ${COMPOSE_PROJECT_NAME}-agent_pip_cache-1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - agent-sockets:/run/agw
+      - ./services/agent-gateway/models.json:/etc/agw/models.json:ro
+    networks:
+      default: {}
+      agent_intern: {}
+      agent_search: {}
+    expose:
+      - "18480"
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME}_network
+      - traefik.http.routers.agent.rule=Host(`agent.${PROJECT_BASE_URL}`)
+      - traefik.http.routers.agent.tls=true
+      - traefik.http.routers.agent.tls.options=default
+      - traefik.http.routers.agent.middlewares[0]=security-headers
+      - traefik.http.routers.agent.entrypoints=https
+      - traefik.http.services.agent.loadbalancer.server.port=18480
+    depends_on:
+      agent_postgres:
+        condition: service_healthy
+      agent_s3:
+        condition: service_healthy
+      agent_npm_cache:
+        condition: service_started
+      agent_pip_cache:
+        condition: service_started
+      agent_searxng:
+        condition: service_started
+      agent_pi_image:
+        condition: service_completed_successfully
+      agent_exec_image:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    stop_grace_period: 30s
+    profiles: ["agents"]
+
+  agent_postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file:
+      - path: secrets/agent-gateway-services.env
+        required: false
+    environment:
+      POSTGRES_USER: agwpoc
+      POSTGRES_DB: agwpoc
+    volumes:
+      - agent-postgres-data:/var/lib/postgresql/data
+    networks: [agent_intern]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agwpoc -d agwpoc"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    profiles: ["agents"]
+
+  agent_s3:
+    image: rustfs/rustfs@sha256:fa19210ac4697c79d7ccca1ec9b0eb91aebacc6691991ffb14014bb3c67e6cc3
+    restart: unless-stopped
+    env_file:
+      - path: secrets/agent-gateway-services.env
+        required: false
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ENABLE: "false"
+      RUSTFS_OBS_LOGGER_LEVEL: warn
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - agent-s3-data:/data
+    networks: [agent_intern]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/health >/dev/null"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    profiles: ["agents"]
+
+  # Package caches for npm and pip. They are reachable from a sandbox only while its chat has
+  # internet access: the orchestrator then attaches them to the sandbox's slot network.
+  agent_npm_cache:
+    image: verdaccio/verdaccio:6.10.4@sha256:43c4067288b050422265407ea2fe747e511fcd0c407a85ec90ab9a326d9400cd
+    restart: unless-stopped
+    volumes:
+      - agent-npm-cache:/verdaccio/storage
+      - ./services/agent-gateway/pkgcache/verdaccio.yaml:/verdaccio/conf/config.yaml:ro
+    networks: [agent_pkg]
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    profiles: ["agents"]
+
+  agent_pip_cache:
+    image: epicwink/proxpi:1.3.0@sha256:0748b92ddf75405d9d83fbd1705517f951e67e0540af86e0a9bf4de388ba86c0
+    restart: unless-stopped
+    environment:
+      PROXPI_CACHE_DIR: /var/cache/proxpi
+      PROXPI_CACHE_SIZE: "10000000000"
+      PROXPI_DOWNLOAD_TIMEOUT: "120"
+      PROXPI_CONNECT_TIMEOUT: "10"
+      PROXPI_READ_TIMEOUT: "60"
+    volumes:
+      - agent-pip-cache:/var/cache/proxpi
+    networks: [agent_pkg]
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    profiles: ["agents"]
+
+  # Own metasearch engine for the agent's web search; only the orchestrator reaches it.
+  agent_searxng:
+    image: searxng/searxng:2026.9.30-a9d990033@sha256:a07a5cd2da2c63d66e559f9e4d3a3db106cfc6c32fb0ac70abe91cc28bcd7350
+    restart: unless-stopped
+    user: "977:977"
+    env_file:
+      - path: secrets/agent-gateway-services.env
+        required: false
+    environment:
+      FORCE_OWNERSHIP: "false"
+    volumes:
+      - ./services/agent-gateway/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    tmpfs:
+      - /var/cache/searxng:uid=977,gid=977
+      - /tmp
+    networks: [agent_search]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    profiles: ["agents"]
+
 volumes:
   fuseki-data:
   minio-data:
@@ -885,3 +1095,9 @@ volumes:
   grafana-data:
   jupyterhub-data:
   triton-data:
+  agent-postgres-data:
+  agent-s3-data:
+  agent-npm-cache:
+  agent-pip-cache:
+  agent-sockets:
+    name: ${COMPOSE_PROJECT_NAME}_agent_sockets
