@@ -959,9 +959,8 @@ services:
       - traefik.http.routers.agent.rule=Host(`app.${PROJECT_BASE_URL}`) && PathPrefix(`/agent`)
       - traefik.http.routers.agent.tls=true
       - traefik.http.routers.agent.tls.options=default
-      - traefik.http.routers.agent.middlewares[0]=agent-trailing-slash
-      - traefik.http.routers.agent.middlewares[1]=agent-strip-prefix
-      - traefik.http.routers.agent.middlewares[2]=security-headers
+      # Comma-separated list: Traefik 2 does not read the indexed form middlewares[0]=… from Docker labels.
+      - traefik.http.routers.agent.middlewares=agent-trailing-slash,agent-strip-prefix,security-headers
       # /agent → /agent/: the web UI uses relative URLs, which resolve against / without the slash
       - traefik.http.middlewares.agent-trailing-slash.redirectregex.regex=^(https?://[^/]+/agent)$$
       - traefik.http.middlewares.agent-trailing-slash.redirectregex.replacement=$${1}/
