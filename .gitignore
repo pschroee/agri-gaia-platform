@@ -6,6 +6,7 @@
 # SPDX-FileContributor: Maik Fruhner
 # SPDX-FileContributor: Prof. Dr.-Ing. Heiko Tapken
 # SPDX-FileContributor: Tobias Wamhof
+# SPDX-FileContributor: Philipp Schröer
 #
 # SPDX-License-Identifier: MIT
 
@@ -23,3 +24,5 @@ start-core.sh
 pull.sh
 
 data/geo
+!secrets/agent-gateway.env.example
+!secrets/agent-gateway-services.env.example
