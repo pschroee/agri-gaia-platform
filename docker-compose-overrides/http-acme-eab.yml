@@ -6,6 +6,7 @@
 # SPDX-FileContributor: Maik Fruhner
 # SPDX-FileContributor: Prof. Dr.-Ing. Heiko Tapken
 # SPDX-FileContributor: Tobias Wamhof
+# SPDX-FileContributor: Philipp Schröer
 #
 # SPDX-License-Identifier: MIT
 
@@ -102,3 +103,7 @@ services:
   jupyterhub:
     labels:
       - traefik.http.routers.jupyterhub.tls.certresolver=httpresolver
+
+  agent_gateway:
+    labels:
+      - traefik.http.routers.agent.tls.certresolver=httpresolver
