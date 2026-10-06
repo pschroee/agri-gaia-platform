@@ -61,7 +61,7 @@ services:
       - traefik.http.routers.traefik.entrypoints=https
       - traefik.http.routers.traefik.tls=true
       - traefik.http.routers.traefik.tls.options=default
-      - traefik.http.routers.traefik.middlewares[0]=security-headers
+      - traefik.http.routers.traefik.middlewares=security-headers
 
       # New middleware to disable external access to /metrics paths
       # - traefik.http.middlewares.block-metrics.replacepathregex.regex=^/metrics
@@ -107,8 +107,8 @@ services:
       - traefik.http.routers.backend.rule=Host(`api.${PROJECT_BASE_URL}`)
       - traefik.http.routers.backend.tls=true
       - traefik.http.routers.backend.tls.options=default
-      - traefik.http.routers.backend.middlewares[0]=security-headers
-      #- traefik.http.routers.backend.middlewares[1]=block-metrics
+      - traefik.http.routers.backend.middlewares=security-headers
+      #- traefik.http.routers.backend.middlewares=security-headers,block-metrics
       - traefik.http.routers.backend.entrypoints=https
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -206,7 +206,7 @@ services:
       - traefik.http.routers.frontend.rule=Host(`app.${PROJECT_BASE_URL}`)
       - traefik.http.routers.frontend.tls=true
       - traefik.http.routers.frontend.tls.options=default
-      - traefik.http.routers.frontend.middlewares[0]=security-headers
+      - traefik.http.routers.frontend.middlewares=security-headers
       - traefik.http.routers.frontend.entrypoints=https
     depends_on:
       keycloak:
@@ -959,7 +959,7 @@ services:
       - traefik.http.routers.agent.rule=Host(`app.${PROJECT_BASE_URL}`) && PathPrefix(`/agent`)
       - traefik.http.routers.agent.tls=true
       - traefik.http.routers.agent.tls.options=default
-      # Comma-separated list: Traefik 2 does not read the indexed form middlewares[0]=… from Docker labels.
+      # Comma-separated list: Traefik 2 ignores indexed middleware labels (with [0], [1], …) on Docker routers.
       - traefik.http.routers.agent.middlewares=agent-trailing-slash,agent-strip-prefix,security-headers
       # /agent → /agent/: the web UI uses relative URLs, which resolve against / without the slash
       - traefik.http.middlewares.agent-trailing-slash.redirectregex.regex=^(https?://[^/]+/agent)$$
