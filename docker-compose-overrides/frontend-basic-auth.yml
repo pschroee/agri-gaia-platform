@@ -6,16 +6,17 @@
 # SPDX-FileContributor: Maik Fruhner
 # SPDX-FileContributor: Prof. Dr.-Ing. Heiko Tapken
 # SPDX-FileContributor: Tobias Wamhof
+# SPDX-FileContributor: Philipp Schröer
 #
 # SPDX-License-Identifier: MIT
 
 services:
   reverse_proxy:
     labels:
-      - traefik.http.routers.traefik.middlewares[1]=traefik-auth
+      - traefik.http.routers.traefik.middlewares=security-headers,traefik-auth
       - traefik.http.middlewares.traefik-auth.basicauth.users=${TRAEFIK_USER}:${TRAEFIK_HTPASSWD}
 
   frontend:
     labels:
-      - traefik.http.routers.frontend.middlewares[1]=frontend-auth
+      - traefik.http.routers.frontend.middlewares=security-headers,frontend-auth
       - traefik.http.middlewares.frontend-auth.basicauth.users=${TRAEFIK_USER}:${TRAEFIK_HTPASSWD}
