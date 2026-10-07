@@ -941,6 +941,10 @@ services:
       AGW_SEARXNG_URL: http://agent_searxng:8080
       AGW_NPM_CACHE: ${COMPOSE_PROJECT_NAME}-agent_npm_cache-1
       AGW_PIP_CACHE: ${COMPOSE_PROJECT_NAME}-agent_pip_cache-1
+      # Bindings of every new chat: cli, mcp, api or a combination such as cli,api (gateway issue #29).
+      AGW_TOOLSETS: ${AGW_TOOLSETS:-cli}
+      # Warm slots for that combination; an idle slot needs about 100-210 MB (pi) plus about 3 MB (sandbox).
+      AGW_POOL_SIZE: ${AGW_POOL_SIZE:-4}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - agent-sockets:/run/agw

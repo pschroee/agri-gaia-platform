@@ -103,6 +103,9 @@ The agent gateway has its own development setup (`services/agent-gateway/dev.sh`
   (`--override false`). A running instance needs the client created or updated through the admin API; the
   script for that lives in the gateway repository (`dev/keycloak-agw-agent.sh`). Keycloak generates the client
   secret; copy it into `secrets/agent-gateway.env`.
+- Bindings of new chats: `AGW_TOOLSETS` (default `cli`; any combination of `cli`, `mcp`, `api`, e.g. `cli,api`) and
+  `AGW_POOL_SIZE` (default 4 warm slots for that combination) on `agent_gateway`, overridable from the platform `.env`.
+  An unknown or empty value stops the gateway at start. Rules in the gateway's `API.md`, *Bindings of new chats*.
 - Frontend panel: build flag `VITE_AGENT_ENABLED` from `AGENT_ENABLED` in `.env` (true on `ki-agents`). The
   panel only makes sense when the `agents` profile runs.
 
