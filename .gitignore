@@ -27,3 +27,4 @@ data/geo
 !secrets/agent-gateway.env.example
 !secrets/agent-gateway-services.env.example
 !secrets/edge-sim.env.example
+!secrets/jupyterhub-agent.env.example
