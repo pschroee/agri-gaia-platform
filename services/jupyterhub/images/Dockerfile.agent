@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Philipp Schröer
+#
+# SPDX-License-Identifier: MIT
+
+# Image of the hardened agent notebooks (named JupyterHub servers agw-*, see
+# services/jupyterhub/config/platform_spawner.py). Built on the data science notebook of the
+# platform and adds what running and exporting small models needs: PyTorch (CPU) and ONNX.
+# The versions of torch and torchvision are the ones of the EfficientNet training template
+# (services/... model-training), so an export in the notebook takes the same path as in training.
+# Build through services/jupyterhub/images/build-cpu-images.sh, which builds the base image first.
+
+ARG JUPYTERHUB_VERSION=5.4.5
+
+FROM agri-gaia/datascience-notebook:hub-${JUPYTERHUB_VERSION}
+
+USER jovyan
+
+# torch and torchvision come from the CPU wheel index of PyTorch; the index also serves the
+# dependencies of torch (filelock, sympy, networkx, ...), so no second index is needed.
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+    "torch~=2.11.0" "torchvision~=0.26.0"
+
+# onnxruntime and skl2onnx come from PyPI and are pinned: an unpinned rebuild would pull a newer
+# version than the one this notebook was tested with. onnxruntime has CPython 3.13 wheels.
+RUN pip install --no-cache-dir "onnx==1.21.0" "onnxruntime==1.31.0" "skl2onnx==1.20.0"
+
+# Fail the build if one of them cannot be imported - a broken notebook image must not go unnoticed
+RUN python -c "import torch, torchvision, onnx, onnxruntime, skl2onnx"

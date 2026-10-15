@@ -8,6 +8,7 @@
 # SPDX-FileContributor: Maik Fruhner
 # SPDX-FileContributor: Prof. Dr.-Ing. Heiko Tapken
 # SPDX-FileContributor: Tobias Wamhof
+# SPDX-FileContributor: Philipp Schröer
 #
 # SPDX-License-Identifier: MIT
 
@@ -22,3 +23,9 @@ docker build -f Dockerfile.jupyter \
     --build-arg JUPYTERHUB_VERSION="$1" \
     --build-arg NOTEBOOK_TYPE=minimal \
     -t agri-gaia/minimal-notebook:hub-"$1" .
+
+# Agent notebooks (named JupyterHub servers agw-*). Built after the data science notebook, which
+# is its base image.
+docker build -f Dockerfile.agent \
+    --build-arg JUPYTERHUB_VERSION="$1" \
+    -t agri-gaia/agent-notebook:hub-"$1" .
