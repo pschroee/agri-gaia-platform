@@ -274,6 +274,63 @@ services:
       - keycloak
     profiles: ["edge"]
 
+  ### Simulated edge device (profile "edge-sim") ###
+  # A simulated edge device for exercising the deployment path without endangering the host. It is
+  # two containers: a Docker daemon of its own and the Portainer edge agent 2.19.5, which matches the
+  # Portainer version of this stack. The daemon is rootless (docker:dind-rootless): a deployment on
+  # the device therefore never becomes a sibling container of the host, and whoever controls the edge
+  # agent is not root on the host. Both containers live only in the internal network edge_sim and
+  # publish no ports, so a deployment opens its ports inside the device, not on the host. The agent
+  # reads its registration secret (EDGE_ID, EDGE_KEY) from secrets/edge-sim.env, which a script
+  # outside this repository writes on the host; the fork only carries edge-sim.env.example.
+
+  # The Docker daemon of the device. The agent talks to it over the shared Unix socket in
+  # /run/user/1000 (edge-sim-run); no TCP port is opened.
+  edge_sim_docker:
+    image: docker:27.5.1-dind-rootless
+    restart: unless-stopped
+    # Rootless Docker-in-Docker still needs the outer container privileged (the daemon inside runs
+    # unprivileged, in a user namespace of its own).
+    privileged: true
+    hostname: sim-edge-01
+    cpus: 2
+    mem_limit: 6g
+    pids_limit: 2048
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      - edge-sim-docker:/home/rootless/.local/share/docker
+      - edge-sim-run:/run/user/1000
+    networks:
+      - edge_sim
+    labels:
+      - agri-gaia.simulated=true
+    profiles: ["edge-sim"]
+
+  # The Portainer edge agent. EDGE=1 enables edge mode, EDGE_INSECURE_POLL=0 keeps certificate
+  # verification on (Portainer sits behind Traefik with a valid certificate). The agent has full
+  # control of the daemon of the device, as on a real device - but that daemon is not the host's.
+  edge_sim_agent:
+    image: portainer/agent:2.19.5
+    restart: unless-stopped
+    env_file:
+      - path: secrets/edge-sim.env
+        required: true
+    environment:
+      EDGE: "1"
+      EDGE_INSECURE_POLL: "0"
+      EDGE_INACTIVITY_TIMEOUT: 30m
+      DOCKER_HOST: unix:///run/user/1000/docker.sock
+    volumes:
+      - edge-sim-run:/run/user/1000
+    networks:
+      - edge_sim
+    labels:
+      - agri-gaia.simulated=true
+    depends_on:
+      - edge_sim_docker
+    profiles: ["edge-sim"]
+
   # The Jena Fuseki Triple Store
   fuseki:
     restart: unless-stopped
@@ -1129,3 +1186,7 @@ volumes:
   agent-pip-cache:
   agent-sockets:
     name: ${COMPOSE_PROJECT_NAME}_agent_sockets
+  # Simulated edge device: the data directory of its Docker daemon and the socket directory it shares
+  # with the edge agent. Both survive a redeploy, so the device keeps its Portainer endpoint.
+  edge-sim-docker:
+  edge-sim-run:
