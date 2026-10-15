@@ -109,6 +109,42 @@ The agent gateway has its own development setup (`services/agent-gateway/dev.sh`
 - Frontend panel: build flag `VITE_AGENT_ENABLED` from `AGENT_ENABLED` in `.env` (true on `ki-agents`). The
   panel only makes sense when the `agents` profile runs.
 
+## Simulated edge device
+
+For the deployment tests of the thesis (issues E0–E3 of the thesis repository) the stack carries a
+simulated edge device, `sim-edge-01`, in the compose profile **`edge-sim`**. It is two services:
+
+- `edge_sim_docker` — a Docker daemon of the device itself, image `docker:27.5.1-dind-rootless`.
+  Because the daemon is rootless, a deployment on the device never becomes a sibling container of
+  the host, and whoever controls the Portainer edge agent is not root on the host. The outer
+  container is still `privileged` (rootless Docker-in-Docker requires it); its limits are 2 CPUs,
+  6 GB memory and 2048 processes. Data and socket live in the volumes `edge-sim-docker` and
+  `edge-sim-run`, so they survive a redeploy.
+- `edge_sim_agent` — the Portainer edge agent `portainer/agent:2.19.5`, matching the Portainer
+  version of this stack. It talks to the daemon over the shared Unix socket, with certificate
+  verification on (`EDGE_INSECURE_POLL=0`).
+
+Both carry the label `agri-gaia.simulated=true`, publish **no** ports (a deployment opens its ports
+inside the device, not on the host) and live only in the **internal** network `edge_sim`
+(`10.231.30.0/24`, `internal: true`). Traefik joins that network with the aliases `portainer.`,
+`edge.` and `registry.`, so the device reaches Portainer, the edge tunnel and the registry — but
+neither the internet nor any other platform service directly. The subnet is also listed in
+`AGW_BLOCKED_SUBNETS` of the gateway.
+
+Registration is not part of this repository: the device needs `EDGE_ID` and `EDGE_KEY` in
+`secrets/edge-sim.env` (template `secrets/edge-sim.env.example`). The script
+`poc/dev/edge-sim-register.sh` of the thesis repository creates the device through the platform API
+and writes that file on the host.
+
+Check it with:
+
+```bash
+docker exec agri_gaia-edge_sim_docker-1 docker ps      # containers deployed on the device
+docker logs agri_gaia-edge_sim_agent-1                 # heartbeat of the edge agent
+```
+
+Enable the profile by adding `edge-sim` to `AG_COMPOSE_PROFILES` in the deployment `.env`.
+
 ## Deployment and how to switch back
 
 Production deployment runs through `deploy.sh` of the deployment repository. It deletes and re-clones
