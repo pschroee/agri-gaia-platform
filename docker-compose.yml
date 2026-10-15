@@ -27,6 +27,15 @@ networks:
     driver_opts: { com.docker.network.bridge.enable_icc: "false" }
     ipam: { config: [{ subnet: 10.231.21.0/24 }] }
 
+  # The simulated edge device (profile "edge-sim") sits alone in this internal network. It reaches
+  # Portainer, the edge tunnel and the registry through Traefik, but has neither internet nor a
+  # direct route to the other platform services. 10.231.30.0/24 keeps it outside Docker's default
+  # 172.x range, which once covered the address of the platform API inside the VM.
+  edge_sim:
+    name: ${COMPOSE_PROJECT_NAME}_edge_sim
+    internal: true
+    ipam: { config: [{ subnet: 10.231.30.0/24 }] }
+
 services:
   reverse_proxy:
     image: traefik:v2.11
@@ -40,6 +49,13 @@ services:
           - api.${PROJECT_BASE_URL}
           - cvat.${PROJECT_BASE_URL}
           - jupyterhub.${PROJECT_BASE_URL}
+      # Only what the simulated edge device needs: it resolves Portainer, the edge tunnel and the
+      # registry to Traefik. Traefik itself keeps serving its routers over the default network.
+      edge_sim:
+        aliases:
+          - portainer.${PROJECT_BASE_URL}
+          - edge.${PROJECT_BASE_URL}
+          - registry.${PROJECT_BASE_URL}
     # Enables the web UI and tells Traefik to listen to docker
     ports:
       # The React Frontend
