@@ -36,6 +36,16 @@ networks:
     internal: true
     ipam: { config: [{ subnet: 10.231.30.0/24 }] }
 
+  # Agent notebooks: the hardened JupyterHub servers agw-* (started by the agent gateway) live here
+  # and nowhere else. The network is internal, so a notebook has no route to the internet and no
+  # route into the platform network; it reaches the hub and its own proxy because the hub is
+  # attached to this network too. 10.231.23.0/24 keeps it outside Docker's default 172.x range,
+  # which once covered the address of the platform API inside the VM.
+  agent_notebooks:
+    name: ${COMPOSE_PROJECT_NAME}_agent_notebooks
+    internal: true
+    ipam: { config: [{ subnet: 10.231.23.0/24 }] }
+
 services:
   reverse_proxy:
     image: traefik:v2.11
@@ -605,6 +615,12 @@ services:
         - JUPYTERHUB_VERSION=${JUPYTERHUB_VERSION}
     hostname: jupyterhub
     restart: unless-stopped
+    # Service token for the agent gateway (AGW_JUPYTERHUB_TOKEN); without the file the hub starts
+    # unchanged. In production the file lives in /opt/agri-gaia/secrets/ and is copied here by the
+    # deployment.
+    env_file:
+      - path: secrets/jupyterhub-agent.env
+        required: false
     volumes:
       # The JupyterHub configuration file
       - ./services/jupyterhub/config:/srv/jupyterhub/config:ro"
@@ -623,6 +639,12 @@ services:
 
       PROJECT_NAME: ${COMPOSE_PROJECT_NAME}
       DOCKER_NETWORK_NAME: ${COMPOSE_PROJECT_NAME}_network
+      # Network and limits of the hardened agw-* servers (see platform_spawner.py). The limits are
+      # pass-throughs with the spawner's own defaults, so they can be raised from the platform
+      # .env when a notebook needs more than 2 CPUs or 8 GB.
+      AGW_NOTEBOOK_NETWORK: ${COMPOSE_PROJECT_NAME}_agent_notebooks
+      AGW_NOTEBOOK_CPUS: ${AGW_NOTEBOOK_CPUS:-2}
+      AGW_NOTEBOOK_MEM: ${AGW_NOTEBOOK_MEM:-8G}
 
       NGC_IMAGE_TAG: ${JUPYTERHUB_NGC_IMAGE_TAG}
       JUPYTERHUB_VERSION: ${JUPYTERHUB_VERSION}
@@ -631,6 +653,9 @@ services:
 
     labels:
       - traefik.enable=true
+      # The hub is attached to two networks since the agent notebooks exist; Traefik has to use the
+      # platform network, the internal notebook network is not reachable for it.
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME}_network
       - traefik.http.routers.jupyterhub.service=jupyterhub
       - traefik.http.routers.jupyterhub.rule=Host(`jupyterhub.${PROJECT_BASE_URL}`)
       - traefik.http.routers.jupyterhub.tls=true
@@ -639,6 +664,11 @@ services:
       - traefik.http.routers.jupyterhub.entrypoints=https
       #- traefik.http.routers.jupyterhub.middlewares=block-metrics
       - traefik.http.services.jupyterhub.loadbalancer.server.port=8000
+    # The hub also sits in the internal notebook network, because it is the only way out for an
+    # agw-* notebook (hub API and its own proxy path).
+    networks:
+      default: {}
+      agent_notebooks: {}
 
   ##### CVAT #####
 
@@ -990,6 +1020,9 @@ services:
     env_file:
       - path: secrets/agent-gateway.env
         required: false
+      # Same file as for the hub: AGW_JUPYTERHUB_TOKEN is the service token of the agent gateway.
+      - path: secrets/jupyterhub-agent.env
+        required: false
     environment:
       AGW_AUTH_MODE: oidc
       AGW_PUBLIC_URL: https://app.${PROJECT_BASE_URL}/agent
@@ -1001,6 +1034,12 @@ services:
       AGW_PLATFORM_TOKEN_URL: https://keycloak.${PROJECT_BASE_URL}/realms/${KEYCLOAK_REALM_NAME}/protocol/openid-connect/token
       AGW_PLATFORM_CLIENT_ID: agw-agent
       AGW_PLATFORM_TOKEN_EXCHANGE: "true"
+      # JupyterHub: the gateway starts the hardened notebook servers agw-* of a chat over the hub
+      # API (service name and API URL in the platform network) and opens them through the hub's
+      # public address. AGW_NOTEBOOK_PREFIX is the container name prefix of the hub spawner.
+      AGW_JUPYTERHUB_API_URL: http://jupyterhub:8081/hub/api
+      AGW_JUPYTERHUB_PUBLIC_URL: https://jupyterhub.${PROJECT_BASE_URL}
+      AGW_NOTEBOOK_PREFIX: ${COMPOSE_PROJECT_NAME}-jupyter
       AGW_S3_ENDPOINT: agent_s3:9000
       AGW_CATALOG: /etc/agw/models.json
       AGW_IMAGE: agri_gaia-agent_exec
@@ -1010,7 +1049,10 @@ services:
       AGW_SOCKET_VOLUME: ${COMPOSE_PROJECT_NAME}_agent_sockets
       AGW_SOCKET_ROOT: /run/agw
       AGW_PROXY_BASE_URL: http://orchestrator:18481
-      AGW_BLOCKED_SUBNETS: 10.231.20.0/24,10.231.21.0/24,10.231.22.0/24,10.231.128.0/17,10.231.30.0/24
+      # The agent notebooks and the simulated edge device sit in their own subnets as well: they are
+      # targets of the agent, not a source of platform calls. AGW_BLOCKED_SUBNETS is a second line;
+      # the isolation itself comes from the internal networks.
+      AGW_BLOCKED_SUBNETS: 10.231.20.0/24,10.231.21.0/24,10.231.22.0/24,10.231.23.0/24,10.231.128.0/17,10.231.30.0/24
       AGW_SEARXNG_URL: http://agent_searxng:8080
       AGW_NPM_CACHE: ${COMPOSE_PROJECT_NAME}-agent_npm_cache-1
       AGW_PIP_CACHE: ${COMPOSE_PROJECT_NAME}-agent_pip_cache-1
