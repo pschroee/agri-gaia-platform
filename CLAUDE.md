@@ -145,6 +145,41 @@ docker logs agri_gaia-edge_sim_agent-1                 # heartbeat of the edge a
 
 Enable the profile by adding `edge-sim` to `AG_COMPOSE_PROFILES` in the deployment `.env`.
 
+## Agent notebooks
+
+A chat runs its own Python code as a **named JupyterHub server whose name starts with `agw-`**; the gateway
+starts and stops it over the hub API. Such a server is deliberately much narrower than a user's notebook:
+
+- **Hardening** lives in `services/jupyterhub/config/platform_spawner.py` (`_harden_for_agent`, triggered by the
+  `agw-` prefix in the constructor). An agent server is **not privileged**, drops all capabilities, runs with
+  `no-new-privileges`, and is limited to 2 CPUs, 8 GB memory, 1024 processes and 1 GB `/dev/shm`
+  (`AGW_NOTEBOOK_CPUS`, `AGW_NOTEBOOK_MEM` on the hub override the first two). Servers of human users —
+  including all unnamed ones — are untouched: they stay privileged and keep `SYS_ADMIN` and `/dev/fuse`.
+- **No way out.** An agent notebook is attached to the **internal network `agent_notebooks`**
+  (`10.231.23.0/24`, `internal: true`) and to nothing else. It can reach the hub (API and its own proxy path),
+  because the hub is a member of that network too, but it has neither internet nor a route into the platform
+  network or the object store. In addition `10.231.23.0/24` is listed in `AGW_BLOCKED_SUBNETS` of the gateway.
+  Notebook files live in the volume `<project>-jupyterhub-agent-<username>--<servername>` at `/home/jovyan/work`,
+  so chats do not see each other's files.
+- **No Keycloak tokens.** The server token of an agent notebook carries only
+  `users:activity!user` and `access:servers!server` (`server_token_scopes` in the spawner). It cannot read the
+  user's `auth_state`, so running code inside an agent notebook cannot impersonate the user. This is what the
+  default `server` role would have handed out, see `config.py`, `load_roles`.
+- **Service token.** The gateway acts on the hub as the service `agent-gateway`, defined in
+  `services/jupyterhub/config/config.py` with the scopes `servers` and `read:users:name`. Its token comes from
+  `AGW_JUPYTERHUB_TOKEN`, which both the hub and the gateway read from the same secret file
+  `secrets/jupyterhub-agent.env` (example next to it; in production `/opt/agri-gaia/secrets/`). **Without that
+  file the hub starts exactly as before**, no service and no role are added.
+- **Image.** `agri-gaia/agent-notebook:hub-<JUPYTERHUB_VERSION>`, built from
+  `services/jupyterhub/images/Dockerfile.agent` by `build-cpu-images.sh` (after the data science notebook it is
+  based on). It adds torch and torchvision (CPU wheels, same versions as the EfficientNet template) plus onnx,
+  onnxruntime and skl2onnx. The spawner allows exactly this one image for `agw-*` servers, so the image cannot
+  be chosen from the spawn form.
+- **Labels** on an agent notebook container: `agw.notebook=1`, `agw.user=<username>`, `agw.server=<servername>`.
+- Checking a running server: `docker inspect agri_gaia-jupyter-<user>--<servername>` must show
+  `Privileged=false`, `CapDrop=[ALL]`, `SecurityOpt=[no-new-privileges:true]`, `Memory=8589934592`,
+  `NanoCpus=2000000000`, `PidsLimit=1024` and `NetworkMode=agri_gaia_agent_notebooks`.
+
 ## Deployment and how to switch back
 
 Production deployment runs through `deploy.sh` of the deployment repository. It deletes and re-clones
