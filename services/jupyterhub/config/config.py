@@ -6,8 +6,11 @@
 # SPDX-FileContributor: Maik Fruhner
 # SPDX-FileContributor: Prof. Dr.-Ing. Heiko Tapken
 # SPDX-FileContributor: Tobias Wamhof
+# SPDX-FileContributor: Philipp Schröer
 #
 # SPDX-License-Identifier: MIT
+
+import os
 
 # Configuration file for JupyterHub
 c = get_config()
@@ -64,3 +67,19 @@ c.JupyterHub.load_roles = [
         ],
     },
 ]
+
+# The agent gateway starts and stops the hardened agw-* servers of a chat over the hub API. It
+# authenticates with a service token from the environment; without AGW_JUPYTERHUB_TOKEN the hub
+# stays exactly as before. The scopes cover starting and stopping servers ("servers") and looking
+# up the user name ("read:users:name") - deliberately nothing more.
+_agw_token = os.environ.get("AGW_JUPYTERHUB_TOKEN", "")
+if _agw_token:
+    c.JupyterHub.services = [{"name": "agent-gateway", "api_token": _agw_token}]
+    c.JupyterHub.load_roles.append(
+        {
+            "name": "agent-gateway",
+            "description": "Agent gateway: start and stop agw-* servers",
+            "scopes": ["servers", "read:users:name"],
+            "services": ["agent-gateway"],
+        }
+    )
