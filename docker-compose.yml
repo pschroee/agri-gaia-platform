@@ -27,6 +27,15 @@ networks:
     driver_opts: { com.docker.network.bridge.enable_icc: "false" }
     ipam: { config: [{ subnet: 10.231.21.0/24 }] }
 
+  # The simulated edge device (profile "edge-sim") sits alone in this internal network. It reaches
+  # Portainer, the edge tunnel and the registry through Traefik, but has neither internet nor a
+  # direct route to the other platform services. 10.231.30.0/24 keeps it outside Docker's default
+  # 172.x range, which once covered the address of the platform API inside the VM.
+  edge_sim:
+    name: ${COMPOSE_PROJECT_NAME}_edge_sim
+    internal: true
+    ipam: { config: [{ subnet: 10.231.30.0/24 }] }
+
 services:
   reverse_proxy:
     image: traefik:v2.11
@@ -40,6 +49,13 @@ services:
           - api.${PROJECT_BASE_URL}
           - cvat.${PROJECT_BASE_URL}
           - jupyterhub.${PROJECT_BASE_URL}
+      # Only what the simulated edge device needs: it resolves Portainer, the edge tunnel and the
+      # registry to Traefik. Traefik itself keeps serving its routers over the default network.
+      edge_sim:
+        aliases:
+          - portainer.${PROJECT_BASE_URL}
+          - edge.${PROJECT_BASE_URL}
+          - registry.${PROJECT_BASE_URL}
     # Enables the web UI and tells Traefik to listen to docker
     ports:
       # The React Frontend
@@ -257,6 +273,63 @@ services:
     depends_on:
       - keycloak
     profiles: ["edge"]
+
+  ### Simulated edge device (profile "edge-sim") ###
+  # A simulated edge device for exercising the deployment path without endangering the host. It is
+  # two containers: a Docker daemon of its own and the Portainer edge agent 2.19.5, which matches the
+  # Portainer version of this stack. The daemon is rootless (docker:dind-rootless): a deployment on
+  # the device therefore never becomes a sibling container of the host, and whoever controls the edge
+  # agent is not root on the host. Both containers live only in the internal network edge_sim and
+  # publish no ports, so a deployment opens its ports inside the device, not on the host. The agent
+  # reads its registration secret (EDGE_ID, EDGE_KEY) from secrets/edge-sim.env, which a script
+  # outside this repository writes on the host; the fork only carries edge-sim.env.example.
+
+  # The Docker daemon of the device. The agent talks to it over the shared Unix socket in
+  # /run/user/1000 (edge-sim-run); no TCP port is opened.
+  edge_sim_docker:
+    image: docker:27.5.1-dind-rootless
+    restart: unless-stopped
+    # Rootless Docker-in-Docker still needs the outer container privileged (the daemon inside runs
+    # unprivileged, in a user namespace of its own).
+    privileged: true
+    hostname: sim-edge-01
+    cpus: 2
+    mem_limit: 6g
+    pids_limit: 2048
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      - edge-sim-docker:/home/rootless/.local/share/docker
+      - edge-sim-run:/run/user/1000
+    networks:
+      - edge_sim
+    labels:
+      - agri-gaia.simulated=true
+    profiles: ["edge-sim"]
+
+  # The Portainer edge agent. EDGE=1 enables edge mode, EDGE_INSECURE_POLL=0 keeps certificate
+  # verification on (Portainer sits behind Traefik with a valid certificate). The agent has full
+  # control of the daemon of the device, as on a real device - but that daemon is not the host's.
+  edge_sim_agent:
+    image: portainer/agent:2.19.5
+    restart: unless-stopped
+    env_file:
+      - path: secrets/edge-sim.env
+        required: true
+    environment:
+      EDGE: "1"
+      EDGE_INSECURE_POLL: "0"
+      EDGE_INACTIVITY_TIMEOUT: 30m
+      DOCKER_HOST: unix:///run/user/1000/docker.sock
+    volumes:
+      - edge-sim-run:/run/user/1000
+    networks:
+      - edge_sim
+    labels:
+      - agri-gaia.simulated=true
+    depends_on:
+      - edge_sim_docker
+    profiles: ["edge-sim"]
 
   # The Jena Fuseki Triple Store
   fuseki:
@@ -937,7 +1010,7 @@ services:
       AGW_SOCKET_VOLUME: ${COMPOSE_PROJECT_NAME}_agent_sockets
       AGW_SOCKET_ROOT: /run/agw
       AGW_PROXY_BASE_URL: http://orchestrator:18481
-      AGW_BLOCKED_SUBNETS: 10.231.20.0/24,10.231.21.0/24,10.231.22.0/24,10.231.128.0/17
+      AGW_BLOCKED_SUBNETS: 10.231.20.0/24,10.231.21.0/24,10.231.22.0/24,10.231.128.0/17,10.231.30.0/24
       AGW_SEARXNG_URL: http://agent_searxng:8080
       AGW_NPM_CACHE: ${COMPOSE_PROJECT_NAME}-agent_npm_cache-1
       AGW_PIP_CACHE: ${COMPOSE_PROJECT_NAME}-agent_pip_cache-1
@@ -945,6 +1018,9 @@ services:
       AGW_TOOLSETS: ${AGW_TOOLSETS:-cli}
       # Warm slots for that combination; an idle slot needs about 100-210 MB (pi) plus about 3 MB (sandbox).
       AGW_POOL_SIZE: ${AGW_POOL_SIZE:-4}
+      # Compute calls a chat may accept before the gateway refuses further ones (default in the code:
+      # 3). The deployment raises it to 6 so a test chat can build a triton inference container.
+      AGW_COMPUTE_MAX_PER_CHAT: ${AGW_COMPUTE_MAX_PER_CHAT:-6}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - agent-sockets:/run/agw
@@ -1113,3 +1189,7 @@ volumes:
   agent-pip-cache:
   agent-sockets:
     name: ${COMPOSE_PROJECT_NAME}_agent_sockets
+  # Simulated edge device: the data directory of its Docker daemon and the socket directory it shares
+  # with the edge agent. Both survive a redeploy, so the device keeps its Portainer endpoint.
+  edge-sim-docker:
+  edge-sim-run:
