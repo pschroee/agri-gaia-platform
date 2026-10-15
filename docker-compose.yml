@@ -1018,6 +1018,9 @@ services:
       AGW_TOOLSETS: ${AGW_TOOLSETS:-cli}
       # Warm slots for that combination; an idle slot needs about 100-210 MB (pi) plus about 3 MB (sandbox).
       AGW_POOL_SIZE: ${AGW_POOL_SIZE:-4}
+      # Compute calls a chat may accept before the gateway refuses further ones (default in the code:
+      # 3). The deployment raises it to 6 so a test chat can build a triton inference container.
+      AGW_COMPUTE_MAX_PER_CHAT: ${AGW_COMPUTE_MAX_PER_CHAT:-6}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - agent-sockets:/run/agw
