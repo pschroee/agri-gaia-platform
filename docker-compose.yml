@@ -332,7 +332,14 @@ services:
       EDGE_INACTIVITY_TIMEOUT: 30m
       DOCKER_HOST: unix:///run/user/1000/docker.sock
     volumes:
+      # The agent reaches the daemon of the device in two ways and both are needed: its own Docker
+      # client follows DOCKER_HOST (/run/user/1000/docker.sock), while the Docker API proxy it
+      # publishes through the edge tunnel dials the hard-coded path /var/run/docker.sock (agent
+      # 2.19.5, http/proxy/local_socket.go). Without the second mount every request the platform
+      # sends through the tunnel fails with "dial unix /var/run/docker.sock: no such file or
+      # directory", so the device never registers and no container can be deployed to it.
       - edge-sim-run:/run/user/1000
+      - edge-sim-run:/var/run
     networks:
       - edge_sim
     labels:
