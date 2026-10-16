@@ -61,11 +61,14 @@ services:
           - jupyterhub.${PROJECT_BASE_URL}
       # Only what the simulated edge device needs: it resolves Portainer, the edge tunnel and the
       # registry to Traefik. Traefik itself keeps serving its routers over the default network.
+      # The address is fixed: the device's daemon cannot use Docker's DNS (see edge_sim_docker
+      # below), so it reaches Traefik through an /etc/hosts entry that has to name an address.
       edge_sim:
         aliases:
           - portainer.${PROJECT_BASE_URL}
           - edge.${PROJECT_BASE_URL}
           - registry.${PROJECT_BASE_URL}
+        ipv4_address: 10.231.30.2
     # Enables the web UI and tells Traefik to listen to docker
     ports:
       # The React Frontend
@@ -308,14 +311,12 @@ services:
     pids_limit: 2048
     environment:
       DOCKER_TLS_CERTDIR: ""
-      # The daemon inside the device pulls the inference image from the platform's registry and asks
-      # Keycloak for the token of that pull. Both names sit in the host's /etc/hosts (they point at
-      # 127.0.0.1 there, where Traefik listens), so the device has to reach the Docker host with its
-      # Host header; extra_hosts below does that. The network driver is set as well: rootlesskit's
-      # default (vpnkit) resolves through a DNS stub that does not answer on this host, and every
-      # pull then ends in "lookup …: i/o timeout". The names below are enough for the two hosts the
-      # device needs; they sit in its /etc/hosts and need no DNS. Measured on the instance on
-      # 16.10.2026 during the D-E2 live test (the device could not even resolve registry-1.docker.io).
+    # The daemon inside the device pulls the inference image from the registry and asks Keycloak for
+    # the token of that pull. Docker's DNS is out of reach in the device (rootlesskit's vpnkit
+    # resolves through a stub that does not answer here: "lookup …: i/o timeout" for every name,
+    # even registry-1.docker.io), so both names are pinned to the reverse proxy on the device's own
+    # network, where they reach the same routers as through the public name. Measured on the instance
+    # on 16.10.2026 during the D-E2 live test.
     extra_hosts:
       - "registry.${PROJECT_BASE_URL}:10.231.30.2"
       - "keycloak.${PROJECT_BASE_URL}:10.231.30.2"
