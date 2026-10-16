@@ -1089,6 +1089,9 @@ services:
       AGW_TOOLSETS: ${AGW_TOOLSETS:-cli}
       # Warm slots for that combination; an idle slot needs about 100-210 MB (pi) plus about 3 MB (sandbox).
       AGW_POOL_SIZE: ${AGW_POOL_SIZE:-4}
+      # The simulated edge device the agent gateway may send test requests to after a deployment
+      # (gateway R3, issue #116): name=container, and only this one. A real device is never reached.
+      AGW_EDGE_SIM_DEVICES: sim-edge-01=${COMPOSE_PROJECT_NAME}-edge_sim_docker-1
       # Compute calls a chat may accept before the gateway refuses further ones (default in the code:
       # 3). The deployment raises it to 6 so a test chat can build a triton inference container.
       AGW_COMPUTE_MAX_PER_CHAT: ${AGW_COMPUTE_MAX_PER_CHAT:-6}
