@@ -317,8 +317,8 @@ services:
       # device needs; they sit in its /etc/hosts and need no DNS. Measured on the instance on
       # 16.10.2026 during the D-E2 live test (the device could not even resolve registry-1.docker.io).
     extra_hosts:
-      - "registry.${PROJECT_BASE_URL}:host-gateway"
-      - "keycloak.${PROJECT_BASE_URL}:host-gateway"
+      - "registry.${PROJECT_BASE_URL}:192.168.0.2"
+      - "keycloak.${PROJECT_BASE_URL}:192.168.0.2"
     volumes:
       - edge-sim-docker:/home/rootless/.local/share/docker
       - edge-sim-run:/run/user/1000
