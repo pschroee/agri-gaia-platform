@@ -1036,10 +1036,12 @@ services:
       AGW_PLATFORM_TOKEN_EXCHANGE: "true"
       # JupyterHub: the gateway starts the hardened notebook servers agw-* of a chat over the hub
       # API (service name and API URL in the platform network) and opens them through the hub's
-      # public address. AGW_NOTEBOOK_PREFIX is the container name prefix of the hub spawner.
+      # public address. AGW_NOTEBOOK_PREFIX is the SERVER name prefix ("agw", the gateway builds
+      # "agw-<chat>"); the spawner hardens only servers whose name starts with "agw-" (AGENT_PREFIX
+      # in platform_spawner.py), so this must stay "agw" (or a prefix hardened there too).
       AGW_JUPYTERHUB_API_URL: http://jupyterhub:8081/hub/api
       AGW_JUPYTERHUB_PUBLIC_URL: https://jupyterhub.${PROJECT_BASE_URL}
-      AGW_NOTEBOOK_PREFIX: ${COMPOSE_PROJECT_NAME}-jupyter
+      AGW_NOTEBOOK_PREFIX: agw
       AGW_S3_ENDPOINT: agent_s3:9000
       AGW_CATALOG: /etc/agw/models.json
       AGW_IMAGE: agri_gaia-agent_exec
