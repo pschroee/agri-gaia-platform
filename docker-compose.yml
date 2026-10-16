@@ -313,10 +313,9 @@ services:
       # 127.0.0.1 there, where Traefik listens), so the device has to reach the Docker host with its
       # Host header; extra_hosts below does that. The network driver is set as well: rootlesskit's
       # default (vpnkit) resolves through a DNS stub that does not answer on this host, and every
-      # pull then ends in "lookup …: i/o timeout". The outer container's network namespace resolves
-      # through Docker's DNS, which serves those hosts entries. Measured on the instance on
+      # pull then ends in "lookup …: i/o timeout". The names below are enough for the two hosts the
+      # device needs; they sit in its /etc/hosts and need no DNS. Measured on the instance on
       # 16.10.2026 during the D-E2 live test (the device could not even resolve registry-1.docker.io).
-      DOCKERD_ROOTLESS_ROOTLESSKIT_NET: "host"
     extra_hosts:
       - "registry.${PROJECT_BASE_URL}:host-gateway"
       - "keycloak.${PROJECT_BASE_URL}:host-gateway"
