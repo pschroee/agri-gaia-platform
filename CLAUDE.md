@@ -106,6 +106,13 @@ The agent gateway has its own development setup (`services/agent-gateway/dev.sh`
 - Bindings of new chats: `AGW_TOOLSETS` (default `cli`; any combination of `cli`, `mcp`, `api`, e.g. `cli,api`) and
   `AGW_POOL_SIZE` (default 4 warm slots for that combination) on `agent_gateway`, overridable from the platform `.env`.
   An unknown or empty value stops the gateway at start. Rules in the gateway's `API.md`, *Bindings of new chats*.
+- Pre-annotation through CVAT (thesis issue #106, V1): `AGW_CVAT_API_URL` and `AGW_CVAT_PUBLIC_URL`
+  (`https://cvat.${PROJECT_BASE_URL}`; the public one is where the links point for the user and defaults to
+  the API URL) and `AGW_ANNOTATION_FUNCTIONS` (function ids the operator installed, comma separated, empty by
+  default; read from the platform `.env`). The gateway logs the chat's user into CVAT through the platform with
+  that user's own session, kept in memory, never the superuser's. Without `AGW_CVAT_API_URL` the gateway leaves
+  the path `/_agw/annotation` off and the annotation tools answer `unavailable`. `AGW_ANNOTATION_MAX_FUNCTIONS`
+  and `AGW_ANNOTATION_MODEL_MAX_MB` belong to V2 (functions built from the user's own models) and are not set here.
 - Frontend panel: build flag `VITE_AGENT_ENABLED` from `AGENT_ENABLED` in `.env` (true on `ki-agents`). The
   panel only makes sense when the `agents` profile runs.
 

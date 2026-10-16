@@ -1034,6 +1034,14 @@ services:
       AGW_PLATFORM_TOKEN_URL: https://keycloak.${PROJECT_BASE_URL}/realms/${KEYCLOAK_REALM_NAME}/protocol/openid-connect/token
       AGW_PLATFORM_CLIENT_ID: agw-agent
       AGW_PLATFORM_TOKEN_EXCHANGE: "true"
+      # Pre-annotation through CVAT: the gateway logs the chat's user into CVAT through the platform
+      # (with that user's own session, kept in memory, never the superuser's) and runs the operator's
+      # Nuclio functions over a dataset. Off without AGW_CVAT_API_URL; then the path /_agw/annotation
+      # answers "unavailable". AGW_ANNOTATION_FUNCTIONS is the operator's comma-separated list of
+      # installed function ids (empty: the operator installed none, so only the user's own count).
+      AGW_CVAT_API_URL: https://cvat.${PROJECT_BASE_URL}
+      AGW_CVAT_PUBLIC_URL: https://cvat.${PROJECT_BASE_URL}
+      AGW_ANNOTATION_FUNCTIONS: ${AGW_ANNOTATION_FUNCTIONS:-}
       # JupyterHub: the gateway starts the hardened notebook servers agw-* of a chat over the hub
       # API (service name and API URL in the platform network) and opens them through the hub's
       # public address. AGW_NOTEBOOK_PREFIX is the SERVER name prefix ("agw", the gateway builds
