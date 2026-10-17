@@ -1035,6 +1035,10 @@ services:
   agent_gateway:
     build:
       context: services/agent-gateway
+      # X8: the gateway reports its own commit; the freeze step refuses a build without one.
+      args:
+        AGW_COMMIT: ${AGW_COMMIT:-dev}
+        AGW_DESCRIBE: ${AGW_DESCRIBE:-dev}
     restart: unless-stopped
     env_file:
       - path: secrets/agent-gateway.env
