@@ -1042,6 +1042,9 @@ services:
       # Same file as for the hub: AGW_JUPYTERHUB_TOKEN is the service token of the agent gateway.
       - path: secrets/jupyterhub-agent.env
         required: false
+      # Experiment run account (X1): AGW_EXP_USER, AGW_EXP_PASSWORD, AGW_EXP_API_TOKEN.
+      - path: secrets/agent-experiments.env
+        required: false
     environment:
       AGW_AUTH_MODE: oidc
       AGW_PUBLIC_URL: https://app.${PROJECT_BASE_URL}/agent
