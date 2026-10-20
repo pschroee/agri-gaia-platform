@@ -4,7 +4,8 @@
 
 # Image of the hardened agent notebooks (named JupyterHub servers agw-*, see
 # services/jupyterhub/config/platform_spawner.py). Built on the data science notebook of the
-# platform and adds what running and exporting small models needs: PyTorch (CPU) and ONNX.
+# platform and adds what running and exporting small models needs: PyTorch (CUDA 12.6 wheels, Volta sm_70 like
+# get_torch_cuda_index() in the backend; they run on CPU hosts too) and ONNX.
 # The versions of torch and torchvision are the ones of the EfficientNet training template
 # (services/... model-training), so an export in the notebook takes the same path as in training.
 # Build through services/jupyterhub/images/build-cpu-images.sh, which builds the base image first.
@@ -13,11 +14,14 @@ ARG JUPYTERHUB_VERSION=5.4.5
 
 FROM agri-gaia/datascience-notebook:hub-${JUPYTERHUB_VERSION}
 
+# Wheel index of torch; https://download.pytorch.org/whl/cpu gives a CPU-only image
+ARG TORCH_INDEX=https://download.pytorch.org/whl/cu126
+
 USER jovyan
 
-# torch and torchvision come from the CPU wheel index of PyTorch; the index also serves the
+# torch and torchvision come from the wheel index TORCH_INDEX of PyTorch; the index also serves the
 # dependencies of torch (filelock, sympy, networkx, ...), so no second index is needed.
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
+RUN pip install --no-cache-dir --index-url "${TORCH_INDEX}" \
     "torch~=2.11.0" "torchvision~=0.26.0"
 
 # onnxruntime and skl2onnx come from PyPI and are pinned: an unpinned rebuild would pull a newer
@@ -25,4 +29,5 @@ RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 
 RUN pip install --no-cache-dir "onnx==1.21.0" "onnxruntime==1.31.0" "skl2onnx==1.20.0"
 
 # Fail the build if one of them cannot be imported - a broken notebook image must not go unnoticed
-RUN python -c "import torch, torchvision, onnx, onnxruntime, skl2onnx"
+RUN python -c "import torch, torchvision, onnx, onnxruntime, skl2onnx; print(torch.__version__, torch.version.cuda)" \
+    && if [ "${TORCH_INDEX##*/}" = "cu126" ]; then python -c "import torch; assert torch.version.cuda.startswith('12.6')"; fi
