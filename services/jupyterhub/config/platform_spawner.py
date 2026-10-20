@@ -15,7 +15,12 @@ from dockerspawner import DockerSpawner
 import docker
 
 BASE_DIR = "/srv/jupyterhub/config"
-GPU_DEVICE_IDS = os.environ.get("GPUS")
+GPU_DEVICE_IDS = os.environ.get("GPUS") or ""
+# GPUs of the hardened agent servers (agw-*); follows GPUS unless AGW_NOTEBOOK_GPUS says otherwise,
+# "none" switches the GPU off for agent servers only.
+AGENT_GPU_IDS = os.environ.get("AGW_NOTEBOOK_GPUS", GPU_DEVICE_IDS) or ""
+if AGENT_GPU_IDS == "none":
+    AGENT_GPU_IDS = ""
 NGC_IMAGE_TAG = os.environ.get("NGC_IMAGE_TAG")
 JUPYTERHUB_VERSION = os.environ.get("JUPYTERHUB_VERSION")
 NETWORK_NAME = os.environ["DOCKER_NETWORK_NAME"]
@@ -26,6 +31,26 @@ PROJECT_NAME = os.environ["PROJECT_NAME"]
 AGENT_PREFIX = "agw-"
 AGENT_NETWORK = os.environ.get("AGW_NOTEBOOK_NETWORK", f"{PROJECT_NAME}_agent_notebooks")
 AGENT_IMAGE = f"agri-gaia/agent-notebook:hub-{JUPYTERHUB_VERSION}"
+
+
+def gpu_device_requests(ids):
+    """DeviceRequests for the GPUs in ids ("0", "0,1", "all"); None for "" or "none"."""
+    if not ids or ids == "none":
+        return None
+    return [docker.types.DeviceRequest(
+        count=-1 if ids == "all" else None,
+        device_ids=None if ids == "all" else [ids],
+        capabilities=[["gpu"]],
+    )]
+
+
+def _image_present(name):
+    """True if the image exists locally (the NGC images are optional and big)."""
+    try:
+        docker.from_env(timeout=5).images.get(name)
+        return True
+    except Exception:
+        return False
 
 
 # First, define a custom spawner class to make the worker node selectable
@@ -54,20 +79,14 @@ class PlatformSpawner(DockerSpawner):
             "privileged": True,
         }
 
-        if GPU_DEVICE_IDS != "":
-            self.extra_host_config["device_requests"] = [
-                docker.types.DeviceRequest(
-                    count=-1 if GPU_DEVICE_IDS == "all" else None,
-                    device_ids=[GPU_DEVICE_IDS] if GPU_DEVICE_IDS != "all" else None,
-                    capabilities=[["gpu"]],
-                ),
-            ]
-            self.allowed_images["pytorch"] = (
-                f"agri-gaia/jupyterhub-notebook-pytorch:{NGC_IMAGE_TAG}"
-            )
-            self.allowed_images["tf2"] = (
-                f"agri-gaia/jupyterhub-notebook-tf2:{NGC_IMAGE_TAG}"
-            )
+        requests = gpu_device_requests(GPU_DEVICE_IDS)
+        if requests is not None:
+            self.extra_host_config["device_requests"] = requests
+            # Offer the NGC images only if they were built (AG_JUPYTERHUB_NGC_IMAGES=false skips them)
+            for key, repo in (("pytorch", "jupyterhub-notebook-pytorch"), ("tf2", "jupyterhub-notebook-tf2")):
+                name = f"agri-gaia/{repo}:{NGC_IMAGE_TAG}"
+                if _image_present(name):
+                    self.allowed_images[key] = name
 
         notebook_container_dir = "/home/jovyan/work"
         notebook_volume_name = PROJECT_NAME + "-jupyterhub-user-{username}"
@@ -126,3 +145,11 @@ class PlatformSpawner(DockerSpawner):
         }
         self.server_token_scopes = ["users:activity!user", "access:servers!server"]
         self.remove = True
+        # The GPU is shared with platform trainings; only CUDA and nvidia-smi, no graphics or video.
+        requests = gpu_device_requests(AGENT_GPU_IDS)
+        if requests is not None:
+            self.extra_host_config["device_requests"] = requests
+            self.environment = {
+                **(self.environment or {}),
+                "NVIDIA_DRIVER_CAPABILITIES": "compute,utility",
+            }

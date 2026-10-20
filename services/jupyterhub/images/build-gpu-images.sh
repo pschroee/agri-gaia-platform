@@ -11,6 +11,11 @@
 #
 # SPDX-License-Identifier: MIT
 
+if [[ "${AG_JUPYTERHUB_NGC_IMAGES:-true}" == false ]]; then
+    echo "NGC notebook images skipped (AG_JUPYTERHUB_NGC_IMAGES=false)"
+    exit 0
+fi
+
 export DOCKER_BUILDKIT=1 
 
 docker build -f Dockerfile.pytorch \

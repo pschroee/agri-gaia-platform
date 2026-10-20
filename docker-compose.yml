@@ -669,6 +669,8 @@ services:
       JUPYTERHUB_VERSION: ${JUPYTERHUB_VERSION}
       JUPYTERHUB_CRYPT_KEY: ${JUPYTERHUB_CRYPT_KEY}
       GPUS: ${GPUS}
+      # GPU of the agw-* servers, follows GPUS; "none" switches it off for agent servers only
+      AGW_NOTEBOOK_GPUS: ${AGW_NOTEBOOK_GPUS:-${GPUS}}
 
     labels:
       - traefik.enable=true
@@ -1076,6 +1078,8 @@ services:
       AGW_JUPYTERHUB_API_URL: http://jupyterhub:8081/hub/api
       AGW_JUPYTERHUB_PUBLIC_URL: https://jupyterhub.${PROJECT_BASE_URL}
       AGW_NOTEBOOK_PREFIX: agw
+      # GPU of the agw-* servers, follows GPUS; none switches it off (shown in the approval card)
+      AGW_NOTEBOOK_GPUS: ${AGW_NOTEBOOK_GPUS:-${GPUS}}
       AGW_S3_ENDPOINT: agent_s3:9000
       AGW_CATALOG: /etc/agw/models.json
       AGW_IMAGE: agri_gaia-agent_exec

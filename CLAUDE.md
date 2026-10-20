@@ -160,7 +160,10 @@ starts and stops it over the hub API. Such a server is deliberately much narrowe
 - **Hardening** lives in `services/jupyterhub/config/platform_spawner.py` (`_harden_for_agent`, triggered by the
   `agw-` prefix in the constructor). An agent server is **not privileged**, drops all capabilities, runs with
   `no-new-privileges`, and is limited to 2 CPUs, 8 GB memory, 1024 processes and 1 GB `/dev/shm`
-  (`AGW_NOTEBOOK_CPUS`, `AGW_NOTEBOOK_MEM` on the hub override the first two). Servers of human users —
+  (`AGW_NOTEBOOK_CPUS`, `AGW_NOTEBOOK_MEM` on the hub override the first two).
+  **GPU:** if `AGW_NOTEBOOK_GPUS` (default: `GPUS`) is set, the server gets the GPU through the same `DeviceRequest`
+  logic as human servers (`gpu_device_requests`) plus `NVIDIA_DRIVER_CAPABILITIES=compute,utility`; the GPU is
+  shared with platform trainings, there is no memory limit. `AGW_NOTEBOOK_GPUS=none` switches it off. Servers of human users —
   including all unnamed ones — are untouched: they stay privileged and keep `SYS_ADMIN` and `/dev/fuse`.
 - **No way out.** An agent notebook is attached to the **internal network `agent_notebooks`**
   (`10.231.23.0/24`, `internal: true`) and to nothing else. It can reach the hub (API and its own proxy path),
@@ -179,13 +182,16 @@ starts and stops it over the hub API. Such a server is deliberately much narrowe
   file the hub starts exactly as before**, no service and no role are added.
 - **Image.** `agri-gaia/agent-notebook:hub-<JUPYTERHUB_VERSION>`, built from
   `services/jupyterhub/images/Dockerfile.agent` by `build-cpu-images.sh` (after the data science notebook it is
-  based on). It adds torch and torchvision (CPU wheels, same versions as the EfficientNet template) plus onnx,
+  based on). It adds torch and torchvision (CUDA 12.6 wheels, `ARG TORCH_INDEX` can point to the CPU index; same versions as the EfficientNet template) plus onnx,
   onnxruntime and skl2onnx. The spawner allows exactly this one image for `agw-*` servers, so the image cannot
   be chosen from the spawn form.
 - **Labels** on an agent notebook container: `agw.notebook=1`, `agw.user=<username>`, `agw.server=<servername>`.
 - Checking a running server: `docker inspect agri_gaia-jupyter-<user>--<servername>` must show
   `Privileged=false`, `CapDrop=[ALL]`, `SecurityOpt=[no-new-privileges:true]`, `Memory=8589934592`,
-  `NanoCpus=2000000000`, `PidsLimit=1024` and `NetworkMode=agri_gaia_agent_notebooks`.
+  `NanoCpus=2000000000`, `PidsLimit=1024` `NetworkMode=agri_gaia_agent_notebooks` and, with a GPU, `DeviceRequests` and `NVIDIA_DRIVER_CAPABILITIES=compute,utility`.
+- **NGC images** (`pytorch`, `tf2`) of human servers are offered only if built locally; `AG_JUPYTERHUB_NGC_IMAGES=false`
+  in the deploy `.env` makes `build-gpu-images.sh` skip the roughly 30 GB build.
+- Spawner tests: `uv run --with pytest --with docker pytest services/jupyterhub/tests -q`.
 
 ## Deployment and how to switch back
 
