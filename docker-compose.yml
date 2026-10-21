@@ -22,9 +22,10 @@ networks:
   agent_search:
     name: ${COMPOSE_PROJECT_NAME}_agent_search
     ipam: { config: [{ subnet: 10.231.22.0/24 }] }
+  # The package caches and the agent gateway's package gate (issue #175). No sandbox is attached; the gateway
+  # reaches the caches here, so container-to-container traffic must stay on (no enable_icc: false).
   agent_pkg:
     name: ${COMPOSE_PROJECT_NAME}_agent_pkg
-    driver_opts: { com.docker.network.bridge.enable_icc: "false" }
     ipam: { config: [{ subnet: 10.231.21.0/24 }] }
 
   # The simulated edge device (profile "edge-sim") sits alone in this internal network. It reaches
@@ -1094,8 +1095,9 @@ services:
       # the isolation itself comes from the internal networks.
       AGW_BLOCKED_SUBNETS: 10.231.20.0/24,10.231.21.0/24,10.231.22.0/24,10.231.23.0/24,10.231.128.0/17,10.231.30.0/24
       AGW_SEARXNG_URL: http://agent_searxng:8080
-      AGW_NPM_CACHE: ${COMPOSE_PROJECT_NAME}-agent_npm_cache-1
-      AGW_PIP_CACHE: ${COMPOSE_PROJECT_NAME}-agent_pip_cache-1
+      # The package gate in the gateway speaks to the caches over the network agent_pkg (issue #175).
+      AGW_NPM_CACHE_URL: http://agent_npm_cache:4873
+      AGW_PIP_CACHE_URL: http://agent_pip_cache:5000
       # Bindings of every new chat: cli, mcp, api or a combination such as cli,api (gateway issue #29).
       AGW_TOOLSETS: ${AGW_TOOLSETS:-cli}
       # Warm slots for that combination; an idle slot needs about 100-210 MB (pi) plus about 3 MB (sandbox).
@@ -1114,6 +1116,7 @@ services:
       default: {}
       agent_intern: {}
       agent_search: {}
+      agent_pkg: {}
     expose:
       - "18480"
     labels:
@@ -1195,8 +1198,8 @@ services:
       start_period: 5s
     profiles: ["agents"]
 
-  # Package caches for npm and pip. They are reachable from a sandbox only while its chat has
-  # internet access: the orchestrator then attaches them to the sandbox's slot network.
+  # Package caches for npm and pip. A sandbox never reaches them: its pip and npm talk to the package gate in the
+  # agent gateway, which checks the package names of the chat's grants first and then asks the cache.
   agent_npm_cache:
     image: verdaccio/verdaccio:6.10.4@sha256:43c4067288b050422265407ea2fe747e511fcd0c407a85ec90ab9a326d9400cd
     restart: unless-stopped
