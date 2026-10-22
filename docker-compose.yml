@@ -54,6 +54,8 @@ services:
     networks:
       default:
         aliases:
+          # app. as well: the agent gateway's experiment runner reaches its own API through Traefik (#208)
+          - app.${PROJECT_BASE_URL}
           - traefik.${PROJECT_BASE_URL}
           - keycloak.${PROJECT_BASE_URL}
           - registry.${PROJECT_BASE_URL}
