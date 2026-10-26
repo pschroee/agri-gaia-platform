@@ -1110,6 +1110,9 @@ services:
       # Compute calls a chat may accept before the gateway refuses further ones (default in the code:
       # 3). The deployment raises it to 6 so a test chat can build a triton inference container.
       AGW_COMPUTE_MAX_PER_CHAT: ${AGW_COMPUTE_MAX_PER_CHAT:-12}
+      # Hard limit on failed tool calls in a row per chat (gateway #217): all calls, and calls of one tool; 0 = off.
+      AGW_MAX_FAILED_TOOL_CALLS: ${AGW_MAX_FAILED_TOOL_CALLS:-20}
+      AGW_MAX_FAILED_SAME_TOOL: ${AGW_MAX_FAILED_SAME_TOOL:-5}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - agent-sockets:/run/agw
