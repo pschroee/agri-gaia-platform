@@ -1113,6 +1113,8 @@ services:
       # Hard limit on failed tool calls in a row per chat (gateway #217): all calls, and calls of one tool; 0 = off.
       AGW_MAX_FAILED_TOOL_CALLS: ${AGW_MAX_FAILED_TOOL_CALLS:-20}
       AGW_MAX_FAILED_SAME_TOOL: ${AGW_MAX_FAILED_SAME_TOOL:-5}
+      # Runtime of inference images the agent builds when the user names none: triton (default) or ovms (gateway #230).
+      AGW_INFERENCE_RUNTIME: ${AGW_INFERENCE_RUNTIME:-triton}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - agent-sockets:/run/agw
