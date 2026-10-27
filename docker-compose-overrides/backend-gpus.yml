@@ -7,6 +7,8 @@
 # SPDX-FileContributor: Prof. Dr.-Ing. Heiko Tapken
 # SPDX-FileContributor: Tobias Wamhof
 #
+# SPDX-FileContributor: Philipp Schröer
+#
 # SPDX-License-Identifier: MIT
 
 services:
@@ -18,3 +20,11 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    # The NVIDIA device files given explicitly (#247): with the device reservation alone the backend loses the GPU
+    # after a `systemctl daemon-reload` (systemd cgroup driver, NVML "Unknown Error"); with these it keeps it.
+    devices:
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidiactl:/dev/nvidiactl
+      - /dev/nvidia-uvm:/dev/nvidia-uvm
+      - /dev/nvidia-uvm-tools:/dev/nvidia-uvm-tools
+      - /dev/nvidia-modeset:/dev/nvidia-modeset
