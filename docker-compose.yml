@@ -1164,7 +1164,8 @@ services:
     profiles: ["agents"]
 
   agent_postgres:
-    image: postgres:17-alpine
+    # PG 17.11, the image running since 2026-10; bump with check-artifacts.py --suggest-digests
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
     restart: unless-stopped
     env_file:
       - path: secrets/agent-gateway-services.env
