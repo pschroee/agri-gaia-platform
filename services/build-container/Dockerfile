@@ -31,3 +31,7 @@ RUN cd /usr/local/bin && \
 
 RUN mkdir /root/.docker
 COPY --from=config_stage /root/config.json /root/.docker/config.json
+
+# Cap the BuildKit cache: the daemon garbage-collects the least recently used
+# entries once the cache exceeds 40 GB.
+COPY daemon.json /etc/docker/daemon.json
