@@ -28,6 +28,11 @@ RUN pip install --no-cache-dir --index-url "${TORCH_INDEX}" \
 # version than the one this notebook was tested with. onnxruntime has CPython 3.13 wheels.
 RUN pip install --no-cache-dir "onnx==1.21.0" "onnxruntime==1.31.0" "skl2onnx==1.20.0"
 
+# opencv-python-headless decodes MP4 (H.264) clips for the agent; the same version as the exec sandbox of the gateway
+# (images/agw-basis/python/requirements.lock). Its wheel bundles FFmpeg and only needs the numpy of the base image
+# (numpy>=2); the headless build has no GUI libraries. A cp37-abi3 wheel, so it fits CPython 3.13 as well.
+RUN pip install --no-cache-dir "opencv-python-headless==4.14.0.94"
+
 # Fail the build if one of them cannot be imported - a broken notebook image must not go unnoticed
-RUN python -c "import torch, torchvision, onnx, onnxruntime, skl2onnx; print(torch.__version__, torch.version.cuda)" \
+RUN python -c "import torch, torchvision, onnx, onnxruntime, skl2onnx, cv2; print(torch.__version__, torch.version.cuda, cv2.__version__)" \
     && if [ "${TORCH_INDEX##*/}" = "cu126" ]; then python -c "import torch; assert torch.version.cuda.startswith('12.6')"; fi
