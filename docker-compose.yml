@@ -1118,10 +1118,39 @@ services:
       AGW_MAX_FAILED_SAME_TOOL: ${AGW_MAX_FAILED_SAME_TOOL:-5}
       # Runtime of inference images the agent builds when the user names none: triton (default) or ovms (gateway #230).
       AGW_INFERENCE_RUNTIME: ${AGW_INFERENCE_RUNTIME:-triton}
+      # Model of the agent gateway (gateway #279). The default is the static catalogue (models.json, DeepSeek). To use another
+      # OpenAI-compatible endpoint, set AGW_LLM_PROVIDER and the AGW_LLM_* variables in .env, name the model in AGW_MODEL as
+      # "<provider>/<model id>", and put the key under the name in AGW_LLM_API_KEY_ENV into secrets/agent-gateway.env. The gateway
+      # builds one provider from these variables and checks them strictly at start; the checksum of the effective catalogue
+      # (catalog_sha256) then covers them. Empty means: not set (the gateway applies its defaults). Details: the gateway README,
+      # "Choosing the model through the environment".
+      AGW_MODEL: ${AGW_MODEL:-}
+      AGW_LLM_PROVIDER: ${AGW_LLM_PROVIDER:-}
+      AGW_LLM_BASE_URL: ${AGW_LLM_BASE_URL:-}
+      AGW_LLM_MODEL_ID: ${AGW_LLM_MODEL_ID:-}
+      AGW_LLM_API_KEY_ENV: ${AGW_LLM_API_KEY_ENV:-}
+      AGW_LLM_API: ${AGW_LLM_API:-}
+      AGW_LLM_CONTEXT_WINDOW: ${AGW_LLM_CONTEXT_WINDOW:-}
+      AGW_LLM_MAX_TOKENS: ${AGW_LLM_MAX_TOKENS:-}
+      AGW_LLM_INPUT: ${AGW_LLM_INPUT:-}
+      AGW_LLM_THINKING: ${AGW_LLM_THINKING:-}
+      AGW_LLM_TAGS: ${AGW_LLM_TAGS:-}
+      AGW_LLM_SAMPLING: ${AGW_LLM_SAMPLING:-}
+      AGW_LLM_SELF_HOSTED: ${AGW_LLM_SELF_HOSTED:-}
+      AGW_LLM_INSTANCE_HEADERS: ${AGW_LLM_INSTANCE_HEADERS:-}
+      # Additional provider and model fields of pi as JSON objects (compat, headers, samplingParams, ...); empty means {}.
+      AGW_LLM_PROVIDER_JSON: ${AGW_LLM_PROVIDER_JSON:-}
+      AGW_LLM_MODEL_JSON: ${AGW_LLM_MODEL_JSON:-}
+      # "name:ip" of AGW_LLM_BASE_URL's host, for an endpoint the DNS of the host does not resolve; the same value goes into
+      # extra_hosts below. The placeholder keeps the file valid without a value.
+      AGW_LLM_EXTRA_HOST: ${AGW_LLM_EXTRA_HOST:-}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - agent-sockets:/run/agw
       - ./services/agent-gateway/models.json:/etc/agw/models.json:ro
+    # Only the orchestrator of the gateway speaks to the model endpoint; the sandboxes never see this name (gateway #279).
+    extra_hosts:
+      - "${AGW_LLM_EXTRA_HOST:-agw-no-extra-host.invalid:127.0.0.1}"
     networks:
       default: {}
       agent_intern: {}
